@@ -76,7 +76,7 @@ const orgData = {
   "導管部-西部事業所": { hq: "導管部", unit: "西部事業所", source: "目標比較シート読込", sales: pipelineSales(targetComparisonRows.west) },
   "導管部-多摩事業所": { hq: "導管部", unit: "多摩事業所", source: "目標比較シート読込", sales: pipelineSales(targetComparisonRows.tama) },
   "導管部-神奈川事業所": { hq: "導管部", unit: "神奈川事業所", source: "目標比較シート読込", sales: pipelineSales(targetComparisonRows.kanagawa) },
-  "導管部-神奈川事業所（湘南分室）": { hq: "導管部", unit: "神奈川事業所（湘南分室）", source: "目標比較シート読込", sales: pipelineSales(targetComparisonRows.shonan) },
+  "導管部-湘南": { hq: "導管部", unit: "湘南", source: "目標比較シート読込", sales: pipelineSales(targetComparisonRows.shonan) },
   "設備本部-設計G": { hq: "設備本部", unit: "設計G", source: "手入力サンプル", sales: { total: createMonthly(5100000, 4800000) } },
   "設備本部-設備技術G": { hq: "設備本部", unit: "設備技術G", source: "手入力サンプル", sales: { total: createMonthly(5600000, 5300000) } },
   "設備本部-設備技術G（AMS）": { hq: "設備本部", unit: "設備技術G（AMS）", source: "手入力サンプル", sales: { total: createMonthly(3900000, 3700000) } },

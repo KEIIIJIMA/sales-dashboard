@@ -41,8 +41,12 @@ def extract(path: Path, sheet_name: str):
         org_cell = ws.cell(r, 2).value
         item_cell = ws.cell(r, 3).value
 
-        if isinstance(org_cell, str) and org_cell in ORG_MAP:
-            current_org = ORG_MAP[org_cell]
+        if isinstance(org_cell, str):
+            if org_cell in ORG_MAP:
+                current_org = ORG_MAP[org_cell]
+            elif org_cell.strip():
+                # "全体" など対象外セクションに入ったら取り込み停止
+                current_org = None
 
         if not current_org or not isinstance(item_cell, str):
             continue
