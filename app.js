@@ -4,36 +4,12 @@ const yen = new Intl.NumberFormat("ja-JP", {
   maximumFractionDigits: 0,
 });
 
-const monthNames = ["6月", "7月", "8月", "9月", "10月", "11月", "12月", "1月", "2月", "3月", "4月", "5月"];
+const monthKeys = ["6月", "7月", "8月", "9月", "10月", "11月", "12月", "1月", "2月", "3月", "4月", "5月"];
 const salesTypes = [
   { key: "total", label: "全体売上", targetColor: "#006d77", actualColor: "#f28e00" },
   { key: "pile", label: "杭売上", targetColor: "#2f5597", actualColor: "#4f81ff" },
   { key: "design", label: "設計売上", targetColor: "#7a3e00", actualColor: "#c46a00" },
 ];
-
-function createMonthly(seedTarget, seedActual) {
-  return monthNames.map((month, i) => ({
-    month,
-    target: seedTarget + i * 250000,
-    actual: Math.max(0, seedActual + i * 200000),
-  }));
-}
-
-function createMonthlyFromTargetActual(targets, actuals) {
-  return monthNames.map((month, i) => ({
-    month,
-    target: Math.max(0, Math.round(targets[i] || 0)),
-    actual: Math.max(0, Math.round(actuals[i] || 0)),
-  }));
-}
-
-function pipelineSales(rows) {
-  return {
-    total: createMonthlyFromTargetActual(rows.totalTarget, rows.totalActual),
-    pile: createMonthlyFromTargetActual(rows.pileTarget, rows.pileActual),
-    design: createMonthlyFromTargetActual(rows.designTarget, rows.designActual),
-  };
-}
 
 const fallbackTargetComparisonRows = {
   west: {
@@ -70,40 +46,157 @@ const fallbackTargetComparisonRows = {
   },
 };
 
-const targetComparisonRows = window.EXCEL_TARGET_COMPARISON || fallbackTargetComparisonRows;
+function buildFiscalMonthNames(startYear) {
+  return monthKeys.map((_, i) => {
+    const monthNo = i < 7 ? 6 + i : i - 6;
+    const year = i < 7 ? startYear : startYear + 1;
+    return `${year}/${monthNo}`;
+  });
+}
 
-const orgData = {
-  "導管部-西部事業所": { hq: "導管部", unit: "西部事業所", source: "目標比較シート読込", sales: pipelineSales(targetComparisonRows.west) },
-  "導管部-多摩事業所": { hq: "導管部", unit: "多摩事業所", source: "目標比較シート読込", sales: pipelineSales(targetComparisonRows.tama) },
-  "導管部-神奈川事業所": { hq: "導管部", unit: "神奈川事業所", source: "目標比較シート読込", sales: pipelineSales(targetComparisonRows.kanagawa) },
-  "導管部-湘南": { hq: "導管部", unit: "湘南", source: "目標比較シート読込", sales: pipelineSales(targetComparisonRows.shonan) },
-  "設備本部-設計G": { hq: "設備本部", unit: "設計G", source: "手入力サンプル", sales: { total: createMonthly(5100000, 4800000) } },
-  "設備本部-設備技術G": { hq: "設備本部", unit: "設備技術G", source: "手入力サンプル", sales: { total: createMonthly(5600000, 5300000) } },
-  "設備本部-設備技術G（AMS）": { hq: "設備本部", unit: "設備技術G（AMS）", source: "手入力サンプル", sales: { total: createMonthly(3900000, 3700000) } },
-};
+function createMonthly(monthNames, seedTarget, seedActual) {
+  return monthNames.map((month, i) => ({
+    month,
+    target: seedTarget + i * 250000,
+    actual: Math.max(0, seedActual + i * 200000),
+  }));
+}
+
+function createMonthlyFromTargetActual(monthNames, targets, actuals) {
+  return monthNames.map((month, i) => ({
+    month,
+    target: Math.max(0, Math.round(targets[i] || 0)),
+    actual: Math.max(0, Math.round(actuals[i] || 0)),
+  }));
+}
+
+function pipelineSales(monthNames, rows) {
+  return {
+    total: createMonthlyFromTargetActual(monthNames, rows.totalTarget, rows.totalActual),
+    pile: createMonthlyFromTargetActual(monthNames, rows.pileTarget, rows.pileActual),
+    design: createMonthlyFromTargetActual(monthNames, rows.designTarget, rows.designActual),
+  };
+}
+
+function normalizeTermsData() {
+  if (window.EXCEL_TERMS && typeof window.EXCEL_TERMS === "object") {
+    return window.EXCEL_TERMS;
+  }
+
+  const meta = window.EXCEL_FISCAL_META || { termNo: 39, startYear: 2025 };
+  const rows = window.EXCEL_TARGET_COMPARISON || fallbackTargetComparisonRows;
+  return {
+    [String(meta.termNo)]: {
+      termNo: meta.termNo,
+      startYear: meta.startYear,
+      rows,
+    },
+  };
+}
+
+const termsData = normalizeTermsData();
+const termKeys = Object.keys(termsData).sort((a, b) => Number(a) - Number(b));
 
 const state = {
+  currentTermKey: termKeys[termKeys.length - 1],
   currentOrgKey: "導管部-西部事業所",
-  orgs: orgData,
 };
 
+let baseOrgData = {};
+let orgViews = [];
+
+const termSelect = document.getElementById("termSelect");
 const orgSelect = document.getElementById("orgSelect");
 const salesTypeHint = document.getElementById("salesTypeHint");
 const orgPath = document.getElementById("orgPath");
+const fiscalInfo = document.getElementById("fiscalInfo");
 const annualBreakdownTable = document.getElementById("annualBreakdownTable");
 const monthlyTable = document.getElementById("monthlyTable");
 const orgSummaryTable = document.getElementById("orgSummaryTable");
 const yearRateEl = document.getElementById("yearRate");
-const monthRateEl = document.getElementById("monthRate");
 const yearBarEl = document.getElementById("yearBar");
-const monthBarEl = document.getElementById("monthBar");
 const yearRemainingEl = document.getElementById("yearRemaining");
 const needPerMonthEl = document.getElementById("needPerMonth");
 const chart = document.getElementById("yearChart");
 const ctx = chart.getContext("2d");
 
+function currentTerm() {
+  return termsData[state.currentTermKey];
+}
+
+function currentMonthNames() {
+  return buildFiscalMonthNames(currentTerm().startYear);
+}
+
+function buildBaseOrgData(termRows, monthNames) {
+  return {
+    "導管部-西部事業所": { hq: "導管部", unit: "西部事業所", source: "目標比較シート読込", sales: pipelineSales(monthNames, termRows.west) },
+    "導管部-多摩事業所": { hq: "導管部", unit: "多摩事業所", source: "目標比較シート読込", sales: pipelineSales(monthNames, termRows.tama) },
+    "導管部-神奈川事業所": { hq: "導管部", unit: "神奈川事業所", source: "目標比較シート読込", sales: pipelineSales(monthNames, termRows.kanagawa) },
+    "導管部-神奈川事業所（湘南分室）": { hq: "導管部", unit: "神奈川事業所（湘南分室）", source: "目標比較シート読込", sales: pipelineSales(monthNames, termRows.shonan) },
+    "設備本部-設計G": { hq: "設備本部", unit: "設計G", source: "手入力サンプル", sales: { total: createMonthly(monthNames, 5100000, 4800000) } },
+    "設備本部-設備技術G": { hq: "設備本部", unit: "設備技術G", source: "手入力サンプル", sales: { total: createMonthly(monthNames, 5600000, 5300000) } },
+    "設備本部-設備技術G（AMS）": { hq: "設備本部", unit: "設備技術G（AMS）", source: "手入力サンプル", sales: { total: createMonthly(monthNames, 3900000, 3700000) } },
+  };
+}
+
+function rebuildTermContext() {
+  const term = currentTerm();
+  const monthNames = currentMonthNames();
+  baseOrgData = buildBaseOrgData(term.rows || fallbackTargetComparisonRows, monthNames);
+  orgViews = [
+    ...Object.keys(baseOrgData).map((key) => ({ key, label: key })),
+    { key: "__pipeline_hq__", label: "導管本部" },
+    { key: "__equipment_hq__", label: "設備本部" },
+    { key: "__company_total__", label: "全社合計" },
+  ];
+
+  if (!orgViews.some((v) => v.key === state.currentOrgKey)) {
+    state.currentOrgKey = orgViews[0].key;
+  }
+}
+
+function emptyMonths(monthNames) {
+  return monthNames.map((month) => ({ month, target: 0, actual: 0 }));
+}
+
+function sumMonthlySeries(monthNames, seriesList) {
+  const summed = emptyMonths(monthNames);
+  seriesList.forEach((months) => {
+    months.forEach((m, i) => {
+      summed[i].target += m.target;
+      summed[i].actual += m.actual;
+    });
+  });
+  return summed;
+}
+
+function buildAggregateOrg(unit, source, selector, includePipelineBreakdown) {
+  const monthNames = currentMonthNames();
+  const orgs = Object.values(baseOrgData).filter(selector);
+  const totalSeries = sumMonthlySeries(monthNames, orgs.map((org) => org.sales.total));
+  const sales = { total: totalSeries };
+
+  if (includePipelineBreakdown) {
+    const pileSeries = sumMonthlySeries(monthNames, orgs.map((org) => org.sales.pile || emptyMonths(monthNames)));
+    const designSeries = sumMonthlySeries(monthNames, orgs.map((org) => org.sales.design || emptyMonths(monthNames)));
+    sales.pile = pileSeries;
+    sales.design = designSeries;
+  }
+
+  return { hq: unit, unit, source, sales };
+}
+
 function currentOrg() {
-  return state.orgs[state.currentOrgKey];
+  const key = state.currentOrgKey;
+  if (baseOrgData[key]) return baseOrgData[key];
+  if (key === "__pipeline_hq__") {
+    return buildAggregateOrg("導管本部", "目標比較シート読込（導管部合算）", (org) => org.hq === "導管部", true);
+  }
+  if (key === "__equipment_hq__") {
+    return buildAggregateOrg("設備本部", "手入力サンプル（設備本部合算）", (org) => org.hq === "設備本部", false);
+  }
+  return buildAggregateOrg("全社合計", "全組織合算", () => true, false);
 }
 
 function ratio(actual, target) {
@@ -117,7 +210,7 @@ function clampPercent(v) {
 
 function currentMonthIndex() {
   const thisMonthLabel = `${new Date().getMonth() + 1}月`;
-  const idx = monthNames.indexOf(thisMonthLabel);
+  const idx = monthKeys.indexOf(thisMonthLabel);
   return idx >= 0 ? idx : 0;
 }
 
@@ -128,32 +221,46 @@ function annualTotals(months) {
 }
 
 function availableTypeDefs(org) {
-  return org.hq === "導管部" ? salesTypes : [salesTypes[0]];
+  return org.hq === "導管部" || org.hq === "導管本部" ? salesTypes : [salesTypes[0]];
 }
 
 function getMonths(org, typeKey) {
   return org.sales[typeKey] || [];
 }
 
-function renderOrgSelect() {
-  orgSelect.innerHTML = "";
-  Object.keys(state.orgs).forEach((key) => {
+function renderTermSelect() {
+  termSelect.innerHTML = "";
+  [...termKeys].sort((a, b) => Number(b) - Number(a)).forEach((key) => {
+    const t = termsData[key];
     const opt = document.createElement("option");
     opt.value = key;
-    opt.textContent = key;
-    if (key === state.currentOrgKey) opt.selected = true;
+    opt.textContent = `${t.termNo}期 (${t.startYear}年6月〜${t.startYear + 1}年5月)`;
+    if (key === state.currentTermKey) opt.selected = true;
+    termSelect.appendChild(opt);
+  });
+}
+
+function renderOrgSelect() {
+  orgSelect.innerHTML = "";
+  orgViews.forEach((view) => {
+    const opt = document.createElement("option");
+    opt.value = view.key;
+    opt.textContent = view.label;
+    if (view.key === state.currentOrgKey) opt.selected = true;
     orgSelect.appendChild(opt);
   });
 }
 
 function renderOrgMeta() {
   const org = currentOrg();
+  const term = currentTerm();
   const source = org.source ? ` / データ: ${org.source}` : "";
+  fiscalInfo.textContent = `${term.termNo}期 (${term.startYear}年6月〜${term.startYear + 1}年5月) / 期を切替して過去期と比較可能`;
   orgPath.textContent = `本部: ${org.hq} / 組織: ${org.unit}${source}`;
   salesTypeHint.textContent =
-    org.hq === "導管部"
+    org.hq === "導管部" || org.hq === "導管本部"
       ? "導管部は 全体売上・杭売上・設計売上 を同時表示しています。"
-      : "設備本部は 全体売上を表示しています。";
+      : "設備本部/全社合計は 全体売上を表示しています。";
 }
 
 function renderBreakdownTables() {
@@ -175,30 +282,26 @@ function renderBreakdownTables() {
   });
 }
 
-function cellOrDash(typeExists, html) {
-  return typeExists ? html : "<td>-</td>";
-}
-
 function renderMonthlyRows() {
   monthlyTable.innerHTML = "";
   const org = currentOrg();
+  const labels = currentMonthNames();
 
-  monthNames.forEach((monthLabel, index) => {
+  labels.forEach((monthLabel, index) => {
     const row = document.createElement("tr");
     row.innerHTML = `<td>${monthLabel}</td>`;
 
     salesTypes.forEach((typeDef) => {
       const months = getMonths(org, typeDef.key);
-      const hasType = months.length > 0;
-      if (!hasType) {
+      if (!months.length) {
         row.innerHTML += "<td>-</td><td>-</td><td class=\"rate-cell\">-</td>";
         return;
       }
       const month = months[index];
       const rate = ratio(month.actual, month.target).toFixed(1);
       row.innerHTML += `
-        <td><input data-type="${typeDef.key}" data-kind="target" data-index="${index}" type="number" min="0" step="10000" value="${month.target}" /></td>
-        <td><input data-type="${typeDef.key}" data-kind="actual" data-index="${index}" type="number" min="0" step="10000" value="${month.actual}" /></td>
+        <td class="amount-cell">${yen.format(month.target)}</td>
+        <td class="amount-cell">${yen.format(month.actual)}</td>
         <td class="rate-cell">${rate}%</td>
       `;
     });
@@ -212,7 +315,7 @@ function renderOrgSummaryTable() {
   const hqTotals = {};
   const companyTotals = { targetTotal: 0, actualTotal: 0 };
 
-  Object.values(state.orgs).forEach((org) => {
+  Object.values(baseOrgData).forEach((org) => {
     const totals = annualTotals(getMonths(org, "total"));
     if (!hqTotals[org.hq]) hqTotals[org.hq] = { targetTotal: 0, actualTotal: 0 };
     hqTotals[org.hq].targetTotal += totals.targetTotal;
@@ -261,15 +364,10 @@ function renderTotalSummary() {
   const months = getMonths(org, "total");
   const idx = currentMonthIndex();
   const year = annualTotals(months);
-  const month = months[idx] || { target: 0, actual: 0 };
 
   const yearPct = ratio(year.actualTotal, year.targetTotal);
-  const monthPct = ratio(month.actual, month.target);
-
   yearRateEl.textContent = `${yearPct.toFixed(1)}%`;
-  monthRateEl.textContent = `${monthPct.toFixed(1)}%`;
   yearBarEl.style.width = `${clampPercent(yearPct)}%`;
-  monthBarEl.style.width = `${clampPercent(monthPct)}%`;
 
   const remaining = Math.max(year.targetTotal - year.actualTotal, 0);
   yearRemainingEl.textContent = yen.format(remaining);
@@ -289,7 +387,7 @@ function drawChart() {
     actuals: getMonths(org, def.key).map((m) => m.actual),
   }));
 
-  const labels = monthNames;
+  const labels = currentMonthNames();
   const padding = { top: 52, right: 28, bottom: 44, left: 64 };
   const width = chart.width;
   const height = chart.height;
@@ -341,7 +439,7 @@ function drawChart() {
   ctx.fillStyle = "#23353a";
   labels.forEach((label, i) => {
     const x = padding.left + stepX * i;
-    ctx.fillText(label, x - 10, height - 12);
+    ctx.fillText(label, x - 18, height - 12);
   });
 
   let legendX = width - 320;
@@ -364,6 +462,8 @@ function drawChart() {
 }
 
 function recalcAndRender() {
+  renderTermSelect();
+  renderOrgSelect();
   renderOrgMeta();
   renderBreakdownTables();
   renderMonthlyRows();
@@ -372,27 +472,16 @@ function recalcAndRender() {
   renderOrgSummaryTable();
 }
 
+termSelect.addEventListener("change", () => {
+  state.currentTermKey = termSelect.value;
+  rebuildTermContext();
+  recalcAndRender();
+});
+
 orgSelect.addEventListener("change", () => {
   state.currentOrgKey = orgSelect.value;
   recalcAndRender();
 });
 
-monthlyTable.addEventListener("input", (e) => {
-  const t = e.target;
-  if (!(t instanceof HTMLInputElement)) return;
-
-  const idx = Number(t.dataset.index);
-  const kind = t.dataset.kind;
-  const type = t.dataset.type;
-  if (Number.isNaN(idx) || !kind || !type) return;
-
-  const org = currentOrg();
-  const months = getMonths(org, type);
-  if (!months.length) return;
-
-  months[idx][kind] = Math.max(0, Number(t.value) || 0);
-  recalcAndRender();
-});
-
-renderOrgSelect();
+rebuildTermContext();
 recalcAndRender();

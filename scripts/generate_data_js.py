@@ -1,5 +1,6 @@
 import argparse
 import json
+import re
 from pathlib import Path
 
 import openpyxl
@@ -30,7 +31,7 @@ def to_num(v):
         return 0
 
 
-def extract(path: Path, sheet_name: str):
+def extract_rows(path: Path, sheet_name: str):
     wb = openpyxl.load_workbook(path, data_only=True)
     ws = wb[sheet_name]
 
@@ -45,7 +46,6 @@ def extract(path: Path, sheet_name: str):
             if org_cell in ORG_MAP:
                 current_org = ORG_MAP[org_cell]
             elif org_cell.strip():
-                # "全体" など対象外セクションに入ったら取り込み停止
                 current_org = None
 
         if not current_org or not isinstance(item_cell, str):
@@ -71,22 +71,56 @@ def extract(path: Path, sheet_name: str):
     return result
 
 
+def load_existing_terms(out_path: Path):
+    if not out_path.exists():
+        return {}
+
+    text = out_path.read_text(encoding="utf-8")
+    m = re.search(r"window\.EXCEL_TERMS\s*=\s*(\{[\s\S]*?\})\s*;", text)
+    if not m:
+        return {}
+
+    try:
+        return json.loads(m.group(1))
+    except Exception:
+        return {}
+
+
 def main():
-    parser = argparse.ArgumentParser(description="目標比較シートから data.js を生成")
+    parser = argparse.ArgumentParser(description="目標比較シートから data.js を生成（複数期保持）")
     parser.add_argument("--xlsx", required=True, help="入力Excelファイル")
     parser.add_argument("--sheet", default="目標比較", help="対象シート名")
     parser.add_argument("--out", default="data.js", help="出力JSファイル")
+    parser.add_argument("--term-no", type=int, required=True, help="期番号 (例: 39)")
+    parser.add_argument("--start-year", type=int, required=True, help="期開始年 (例: 2025)")
     args = parser.parse_args()
 
-    data = extract(Path(args.xlsx), args.sheet)
+    out_path = Path(args.out)
+    terms = load_existing_terms(out_path)
+
+    terms[str(args.term_no)] = {
+        "termNo": args.term_no,
+        "startYear": args.start_year,
+        "rows": extract_rows(Path(args.xlsx), args.sheet),
+    }
+
+    latest_key = sorted(terms.keys(), key=lambda k: int(k))[-1]
+    latest = terms[latest_key]
 
     out = (
-        "window.EXCEL_TARGET_COMPARISON = "
-        + json.dumps(data, ensure_ascii=False, indent=2)
+        "window.EXCEL_TERMS = "
+        + json.dumps(terms, ensure_ascii=False, indent=2)
+        + ";\n\n"
+        + "window.EXCEL_FISCAL_META = "
+        + json.dumps({"termNo": latest["termNo"], "startYear": latest["startYear"]}, ensure_ascii=False)
+        + ";\n\n"
+        + "window.EXCEL_TARGET_COMPARISON = "
+        + json.dumps(latest["rows"], ensure_ascii=False, indent=2)
         + ";\n"
     )
-    Path(args.out).write_text(out, encoding="utf-8")
-    print(f"generated: {args.out}")
+
+    out_path.write_text(out, encoding="utf-8")
+    print(f"generated: {args.out} (terms: {', '.join(sorted(terms.keys(), key=lambda x: int(x)))})")
 
 
 if __name__ == "__main__":

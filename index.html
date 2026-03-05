@@ -11,11 +11,16 @@
     <header class="hero">
       <h1>売上進捗ダッシュボード</h1>
       <p>月間・年間目標に対する進捗をリアルタイムで確認</p>
+      <p id="fiscalInfo" class="hint"></p>
     </header>
 
     <section class="grid metrics">
       <article class="card org-card">
         <h2>対象組織</h2>
+        <label>
+          期を選択
+          <select id="termSelect"></select>
+        </label>
         <label>
           組織を選択
           <select id="orgSelect"></select>
@@ -50,12 +55,6 @@
         <div class="bar-wrap"><div id="yearBar" class="bar"></div></div>
 
         <div class="kpi-row">
-          <span>月間達成率</span>
-          <strong id="monthRate">0%</strong>
-        </div>
-        <div class="bar-wrap"><div id="monthBar" class="bar month"></div></div>
-
-        <div class="kpi-row">
           <span>年間残り必要額</span>
           <strong id="yearRemaining">0円</strong>
         </div>
@@ -69,20 +68,20 @@
     <section class="grid analytics">
       <article class="card">
         <h2>月次内訳（全体 / 杭 / 設計）</h2>
-        <p class="hint">選択中の組織の目標/実績を入力すると、グラフとサマリーが更新されます。</p>
-        <div class="table-wrap">
+        <p class="hint">Excel（目標比較）参照値を表示しています（編集不可）。</p>
+        <div class="table-wrap no-scroll">
           <table>
             <thead>
               <tr>
                 <th>月</th>
-                <th>全体 目標</th>
-                <th>全体 実績</th>
+                <th>全体 目標（円）</th>
+                <th>全体 実績（円）</th>
                 <th>全体 達成率</th>
-                <th>杭 目標</th>
-                <th>杭 実績</th>
+                <th>杭 目標（円）</th>
+                <th>杭 実績（円）</th>
                 <th>杭 達成率</th>
-                <th>設計 目標</th>
-                <th>設計 実績</th>
+                <th>設計 目標（円）</th>
+                <th>設計 実績（円）</th>
                 <th>設計 達成率</th>
               </tr>
             </thead>

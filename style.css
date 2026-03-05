@@ -127,6 +127,11 @@ select:focus {
   overflow: auto;
 }
 
+.table-wrap.no-scroll {
+  max-height: none;
+  overflow: visible;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -146,6 +151,12 @@ td {
 
 td input {
   min-width: 110px;
+}
+
+td.amount-cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 td.rate-cell {
