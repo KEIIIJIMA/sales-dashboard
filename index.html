@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>売上進捗ダッシュボード</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="container">
+    <header class="hero">
+      <h1>売上進捗ダッシュボード</h1>
+      <p>月間・年間目標に対する進捗をリアルタイムで確認</p>
+    </header>
+
+    <section class="grid metrics">
+      <article class="card org-card">
+        <h2>対象組織</h2>
+        <label>
+          組織を選択
+          <select id="orgSelect"></select>
+        </label>
+        <p id="salesTypeHint" class="hint"></p>
+        <p id="orgPath" class="hint"></p>
+      </article>
+
+      <article class="card">
+        <h2>年間（累計）</h2>
+        <div class="table-wrap">
+          <table class="mini-table">
+            <thead>
+              <tr>
+                <th>区分</th>
+                <th>目標</th>
+                <th>実績</th>
+                <th>達成率</th>
+              </tr>
+            </thead>
+            <tbody id="annualBreakdownTable"></tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="card summary">
+        <h2>全体売上サマリー</h2>
+        <div class="kpi-row">
+          <span>年間達成率</span>
+          <strong id="yearRate">0%</strong>
+        </div>
+        <div class="bar-wrap"><div id="yearBar" class="bar"></div></div>
+
+        <div class="kpi-row">
+          <span>月間達成率</span>
+          <strong id="monthRate">0%</strong>
+        </div>
+        <div class="bar-wrap"><div id="monthBar" class="bar month"></div></div>
+
+        <div class="kpi-row">
+          <span>年間残り必要額</span>
+          <strong id="yearRemaining">0円</strong>
+        </div>
+        <div class="kpi-row">
+          <span>残り月の必要平均</span>
+          <strong id="needPerMonth">0円</strong>
+        </div>
+      </article>
+    </section>
+
+    <section class="grid analytics">
+      <article class="card">
+        <h2>月次内訳（全体 / 杭 / 設計）</h2>
+        <p class="hint">選択中の組織の目標/実績を入力すると、グラフとサマリーが更新されます。</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>月</th>
+                <th>全体 目標</th>
+                <th>全体 実績</th>
+                <th>全体 達成率</th>
+                <th>杭 目標</th>
+                <th>杭 実績</th>
+                <th>杭 達成率</th>
+                <th>設計 目標</th>
+                <th>設計 実績</th>
+                <th>設計 達成率</th>
+              </tr>
+            </thead>
+            <tbody id="monthlyTable"></tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="card">
+        <h2>年間推移（全体 / 杭 / 設計）</h2>
+        <canvas id="yearChart" width="1200" height="500" aria-label="年間売上推移グラフ"></canvas>
+      </article>
+    </section>
+
+    <section class="card org-summary-card">
+      <h2>組織別サマリー</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>本部</th>
+              <th>組織</th>
+              <th>年間目標</th>
+              <th>年間実績</th>
+              <th>年間達成率</th>
+            </tr>
+          </thead>
+          <tbody id="orgSummaryTable"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
